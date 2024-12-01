@@ -64,3 +64,4 @@ local.properties
 .loadpath
 
 src/main/java/tp3/
+commands.sh

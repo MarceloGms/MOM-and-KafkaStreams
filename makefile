@@ -14,7 +14,13 @@ word:
 	@mvn exec:java -Dexec.mainClass="WordCountDemo"
 
 streams:
-	@mvn exec:java -Dexec.mainClass="SimpleStreamsExercises" -Dexec.args="kstreamstopic"
+	@mvn exec:java -Dexec.mainClass="tp3.blog.SimpleStreamsExercises" -Dexec.args="kstreamstopic"
 
 prod:
-	@mvn exec:java -Dexec.mainClass="SimpleProducer" -Dexec.args="kstreamstopic"
+	@mvn exec:java -Dexec.mainClass="tp3.blog.SimpleProducer" -Dexec.args="kstreamstopic"
+
+balanceproducer:
+	@mvn exec:java -Dexec.mainClass="tp3.balance.TransactionProducer"
+
+balancecalculator:
+	@mvn exec:java -Dexec.mainClass="tp3.balance.BalanceCalculator"
