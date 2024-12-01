@@ -62,3 +62,5 @@ local.properties
 .classpath
 .settings/
 .loadpath
+
+src/main/java/tp3/
