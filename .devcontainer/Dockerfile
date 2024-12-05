@@ -21,6 +21,7 @@ RUN set -eux \
   wget \
   zsh \
   make \
+  postgresql \
   && microdnf clean all \
   # add a user (--disabled-password: the user won't be able to use the account until the password is set)
   && adduser -p ${USER_PASSWORD} --shell /bin/zsh --home /home/$USER_NAME -c "User" ${USER_NAME} \

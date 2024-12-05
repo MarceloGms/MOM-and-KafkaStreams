@@ -39,7 +39,8 @@ ls /brokers/ids
 
 # --- Postgresql ---
 
-psql -h postgres -p 5432 -U postgres # Login with user postgres
+psql -h database -p 5432 -U postgres # Login with user postgres
+My01pass         # Password
 \l               # List databases
 \c project3      # Connect to project3 database
 \dt              # List tables

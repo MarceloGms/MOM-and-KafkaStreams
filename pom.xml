@@ -12,6 +12,12 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
   </properties>
+  <repositories>
+    <repository>
+      <id>confluent</id>
+      <url>https://packages.confluent.io/maven/</url>
+    </repository>
+  </repositories>
   <dependencies>
     <dependency>
       <groupId>org.apache.kafka</groupId>
@@ -45,7 +51,18 @@ added
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>
       <version>2.0.9</version>
-    </dependency> 
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-jdbc -->
+    <dependency>
+        <groupId>io.confluent</groupId>
+        <artifactId>kafka-connect-jdbc</artifactId>
+        <version>10.4.0</version>
+    </dependency>
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>42.7.4</version>
+    </dependency>
    
   </dependencies>
   <build>
