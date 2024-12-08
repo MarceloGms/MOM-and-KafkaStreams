@@ -1,26 +1,15 @@
 compile:
-	@mvn clean package
+	@mvn clean install
 
-producer:
-	@mvn exec:java -Dexec.mainClass="ProducerDemo"
+routes:
+	@mvn exec:java -Dexec.mainClass="Routes"
 
-consumer:
-	@mvn exec:java -Dexec.mainClass="ConsumerDemo"
+#kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic Routes --from-beginning
 
-fraud:
-	@mvn exec:java -Dexec.mainClass="FraudDetectionApp"
+trips:
+	@mvn exec:java -Dexec.mainClass="PassengerTrips"
 
-word:
-	@mvn exec:java -Dexec.mainClass="WordCountDemo"
+#kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic Trips --from-beginning
 
 streams:
-	@mvn exec:java -Dexec.mainClass="tp3.blog.SimpleStreamsExercises" -Dexec.args="kstreamstopic"
-
-prod:
-	@mvn exec:java -Dexec.mainClass="tp3.blog.SimpleProducer" -Dexec.args="kstreamstopic"
-
-balanceproducer:
-	@mvn exec:java -Dexec.mainClass="tp3.balance.TransactionProducer"
-
-balancecalculator:
-	@mvn exec:java -Dexec.mainClass="tp3.balance.BalanceCalculator"
+	@mvn exec:java -Dexec.mainClass="KafkaStreamsApp"

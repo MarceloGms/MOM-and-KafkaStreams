@@ -1,5 +1,3 @@
--- psql -h db -p 5432 postgres -d project2db
--- Table for the DBInfo topic
 CREATE TABLE DBInfo (
     id SERIAL PRIMARY KEY,
     route_supplier TEXT NOT NULL,
