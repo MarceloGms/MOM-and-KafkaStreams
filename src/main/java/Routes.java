@@ -33,13 +33,14 @@ public class Routes {
       ObjectMapper objectMapper = new ObjectMapper();
 
       for (int i = 0; i < 100; i++) {
+            String routeId = "Route" + RANDOM.nextInt(10);
             String origin = "City" + RANDOM.nextInt(10);
             String destination = "City" + RANDOM.nextInt(10);
             String transportType = TRANSPORT_TYPES[RANDOM.nextInt(TRANSPORT_TYPES.length)];
             String operator = OPERATORS[RANDOM.nextInt(OPERATORS.length)];
             int capacity = RANDOM.nextInt(200) + 1;
 
-            Route route = new Route(origin, destination, transportType, operator, capacity);
+            Route route = new Route(routeId, origin, destination, transportType, operator, capacity);
 
             try {
                String routeJson = objectMapper.writeValueAsString(route);

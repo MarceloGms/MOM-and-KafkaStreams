@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Route {
+   private String routeId;
    private String origin;
    private String destination;
    private String transportType;

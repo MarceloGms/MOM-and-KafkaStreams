@@ -7,7 +7,6 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 import serdes.route.RouteSerde;
@@ -30,7 +29,7 @@ public class KafkaStreamsApp {
 
         KStream<String, Route> routesStream = builder.stream("Routes", Consumed.with(Serdes.String(), new RouteSerde()));
 
-        // Get passengers per route
+        // 4 => Get passengers per route
         tripsStream
                 .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new TripSerde()))
                 .aggregate(
@@ -41,6 +40,27 @@ public class KafkaStreamsApp {
                 .toStream()
                 .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
                 .to("Results-PassengersPerRoute", Produced.with(Serdes.String(), Serdes.String()));
+
+        // 5 => Get available seats per route
+        routesStream
+                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new RouteSerde()))
+                .aggregate(
+                        () -> 0,
+                        (key, value, aggregate) -> aggregate + value.getCapacity(),
+                        Materialized.with(Serdes.String(), Serdes.Integer())
+                )
+                .toStream()
+                .peek((key, value) -> System.out.println("Available seats for route " + key + ": " + value))
+                .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.String(), Serdes.Integer()));
+
+        // 7 => Get total passengers
+        //! ns se total passengers para cada rota ou total de passageiros no geral?
+        tripsStream
+                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new TripSerde()))
+                .count()
+                .toStream()
+                .peek((key, value) -> System.out.println("Total passengers for route " + key + ": " + value))
+                .to("Results-TotalPassengersPerRoute", Produced.with(Serdes.String(), Serdes.Long()));
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
