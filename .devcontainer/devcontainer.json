@@ -10,8 +10,11 @@
 				"vscjava.vscode-maven",
 				"vscjava.vscode-java-pack",
 				"redhat.fabric8-analytics",
-				"mhutchie.git-graph"
+				"mhutchie.git-graph",
+				"postman.postman-for-vscode",
+				"aaron-bond.better-comments"
 			]
 		}
-	}
+	},
+	"postCreateCommand": "java -version"
 }
