@@ -53,14 +53,14 @@ public class KafkaStreamsApp {
                 .peek((key, value) -> System.out.println("Available seats for route " + key + ": " + value))
                 .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.String(), Serdes.Integer()));
 
-        // 7 => Get total passengers
-        //! ns se total passengers para cada rota ou total de passageiros no geral?
+        // 7 => Count total number of passengers
         tripsStream
-                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new TripSerde()))
-                .count()
+                .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new TripSerde()))
+                .count(Materialized.with(Serdes.String(), Serdes.Long()))
                 .toStream()
-                .peek((key, value) -> System.out.println("Total passengers for route " + key + ": " + value))
-                .to("Results-TotalPassengersPerRoute", Produced.with(Serdes.String(), Serdes.Long()));
+                .peek((key, value) -> System.out.println("Total number of passengers: " + value))
+                .to("Results-TotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
+
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
         streams.start();
