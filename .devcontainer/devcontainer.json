@@ -12,7 +12,8 @@
 				"redhat.fabric8-analytics",
 				"mhutchie.git-graph",
 				"postman.postman-for-vscode",
-				"aaron-bond.better-comments"
+				"aaron-bond.better-comments",
+				"ms-vscode.makefile-tools"
 			]
 		}
 	},

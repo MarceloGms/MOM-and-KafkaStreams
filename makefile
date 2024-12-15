@@ -13,3 +13,6 @@ trips:
 
 streams:
 	@mvn exec:java -Dexec.mainClass="KafkaStreamsApp"
+
+server:
+	@mvn spring-boot:run
