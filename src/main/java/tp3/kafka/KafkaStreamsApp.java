@@ -2,6 +2,7 @@ package tp3.kafka;
 
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
@@ -11,8 +12,10 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 
 import tp3.kafka.serdes.results.ResultsSerde;
+import tp3.kafka.serdes.results.ResultsSerializer;
 import tp3.kafka.serdes.route.RouteSerde;
 import tp3.kafka.serdes.trip.TripSerde;
+import tp3.persistence.entity.Results;
 import tp3.persistence.entity.Route;
 import tp3.persistence.entity.Trip;
 
@@ -42,8 +45,13 @@ public class KafkaStreamsApp {
                         Materialized.with(Serdes.Long(), Serdes.String())
                 )
                 .toStream()
+                .map((key, value) -> {
+                        String newKey = String.valueOf(key);
+                        Results result = new Results(value);
+                        return new KeyValue<>(newKey, result);
+                    })
                 .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
-                .to("Results-PassengersPerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
+                .to("ResultsPassengersPerRoute", Produced.with(Serdes.String(), new ResultsSerde()));
 
         // 5 => Get available seats per route
         routesStream
@@ -55,7 +63,7 @@ public class KafkaStreamsApp {
                 )
                 .toStream()
                 .peek((key, value) -> System.out.println("Available seats for route " + key + ": " + value))
-                .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
+                .to("ResultsAvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
 
         // 7 => Count total number of passengers
         tripsStream
@@ -63,7 +71,7 @@ public class KafkaStreamsApp {
                 .count(Materialized.with(Serdes.String(), Serdes.Long()))
                 .toStream()
                 .peek((key, value) -> System.out.println("Total number of passengers: " + value))
-                .to("Results-TotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
+                .to("ResultsTotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
 
 
         KafkaStreams streams = new KafkaStreams(builder.build(), props);

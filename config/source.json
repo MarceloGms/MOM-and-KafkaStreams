@@ -6,8 +6,8 @@
        "connection.user": "postgres",
        "connection.password": "My01pass",
        "mode": "bulk",
-       "query": "SELECT * FROM countries",
+       "query": "SELECT * FROM Supplier",
        "poll.interval.ms": 60000,
-       "topic.prefix": "project3fromDB"
+       "topic.prefix": "DBInfo"
    }
 }

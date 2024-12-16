@@ -1,16 +1,18 @@
 {
    "name": "jdbc-postgresql-sink",
    "config": {
-       "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
-       "connection.url": "jdbc:postgresql://database:5432/project3?user=postgres&password=My01pass",
-       "dialect.name": "PostgreSqlDatabaseDialect",
-       "topics": "Results-PassengersPerRoute,Results-AvailableSeatsPerRoute,Results-TotalPassengerCount",
-       "auto.create": "true",
-       "insert.mode": "upsert",
-       "pk.mode": "record_value",
-       "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-       "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-       "key.converter.schemas.enable": "true",
-       "value.converter.schemas.enable": "true"
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "connection.url": "jdbc:postgresql://database:5432/project3?user=postgres&password=My01pass",
+        "dialect.name": "PostgreSqlDatabaseDialect",
+        "tasks.max": "1",
+        "topics": "ResultsPassengersPerRoute,ResultsAvailableSeatsPerRoute,ResultsTotalPassengerCount",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.mode": "record_value",
+        "pk.fields": "id",
+        "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schemas.enable": "true",
+        "value.converter.schemas.enable": "true"
    }
 }

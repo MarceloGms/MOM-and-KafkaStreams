@@ -1,40 +1,35 @@
 package tp3.kafka.serdes.results;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serializer;
-
-import java.util.HashMap;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 
-public class ResultsSerializer implements Serializer<String> {
+import tp3.persistence.entity.Results;
+
+public class ResultsSerializer implements Serializer<Results> {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public byte[] serialize(String topic, String data) {
+    public void configure(Map<String, ?> configs, boolean isKey) {
+        // Configuration logic if needed
+    }
+
+    @Override
+    public byte[] serialize(String topic, Results data) {
         try {
-            // Define the schema structure
-            Map<String, Object> schema = new HashMap<>();
-            schema.put("type", "struct");
-            schema.put("fields", new Object[]{
-                Map.of("type", "string", "optional", false, "field", "results")
-            });
-            schema.put("optional", false);
-            schema.put("name", "results schema");
-
-            // Define the payload structure
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("results", data);
-
-            // Combine schema and payload
-            Map<String, Object> result = new HashMap<>();
-            result.put("schema", schema);
-            result.put("payload", payload);
-
-            // Serialize to JSON
-            return objectMapper.writeValueAsBytes(result);
+            if (data == null) {
+                return null;
+            }
+            // Convert Results object to JSON byte array
+            return objectMapper.writeValueAsBytes(data);
         } catch (Exception e) {
-            throw new RuntimeException("Error serializing results", e);
+            throw new RuntimeException("Error serializing Results object", e);
         }
+    }
+
+    @Override
+    public void close() {
+        // Cleanup if needed
     }
 }

@@ -17,15 +17,12 @@ kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic account-balanc
 # Runs one consumer that reads all historical data from the beginning
 kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic test_topic --from-beginning
 
-# Create one topic with 3 partitions
+# Create topics
 kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Routes --partitions 5 --config cleanup.policy=compact
 kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Trips --partitions 5 --config cleanup.policy=compact
-
-
-
-
-kafka-console-producer.sh --bootstrap-server broker1:9092 --topic test_topic_with_partitions
-kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic test_topic_with_partitions
+# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-PassengersPerRoute --partitions 3 --config cleanup.policy=compact
+# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-AvailableSeatsPerRoute --partitions 3 --config cleanup.policy=compact
+# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-TotalPassengerCount --partitions 3 --config cleanup.policy=compact
 
 # Describe a given topic
 kafka-topics.sh --bootstrap-server broker1:9092 --describe --topic test_topic_with_partitions
@@ -48,3 +45,12 @@ PGPASSWORD=My01pass psql -h database -p 5432 -U postgres -d project3
 \l               # List databases
 \c project3      # Connect to project3 database
 \dt              # List tables
+
+# --- Connectors ---
+
+cd config
+curl -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://connect:8083/connectors -d @source.json
+curl -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://connect:8083/connectors -d @sink.json
+
+curl -X DELETE -H "Accept:application/json" -H  "Content-Type:application/json" http://connect:8083/connectors/jdbc-source-suppliers
+curl -X DELETE -H "Accept:application/json" -H  "Content-Type:application/json" http://connect:8083/connectors/jdbc-postgresql-sink
