@@ -14,7 +14,6 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 
 import tp3.kafka.serdes.results.ResultsSerde;
-import tp3.kafka.serdes.results.ResultsSerializer;
 import tp3.kafka.serdes.route.RouteSerde;
 import tp3.kafka.serdes.trip.TripSerde;
 import tp3.persistence.entity.Results;
@@ -32,82 +31,67 @@ public class KafkaStreamsApp {
 
                 StreamsBuilder builder = new StreamsBuilder();
 
-                KStream<String, Trip> tripsStream = builder.stream("Trips",
-                                Consumed.with(Serdes.String(), new TripSerde()));
+                KStream<String, Trip> tripsStream = builder.stream("Trips", Consumed.with(Serdes.String(), new TripSerde()));
 
-                KStream<String, Route> routesStream = builder.stream("Routes",
-                                Consumed.with(Serdes.String(), new RouteSerde()));
+                KStream<String, Route> routesStream = builder.stream("Routes", Consumed.with(Serdes.String(), new RouteSerde()));
 
-        // 4 => Get passengers per route
-        tripsStream
-                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
-                .aggregate(
-                        () -> "",
-                        (key, value, aggregate) -> aggregate.isEmpty() ? value.getPassengerName() : aggregate + ", " + value.getPassengerName(),
-                        Materialized.with(Serdes.Long(), Serdes.String())
-                )
-                .toStream()
-                .map((key, value) -> {
-                        String newKey = String.valueOf(key);
-                        Results result = new Results(value);
-                        return new KeyValue<>(newKey, result);
-                    })
-                .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
-                .to("ResultsPassengersPerRoute", Produced.with(Serdes.String(), new ResultsSerde()));
+                // 4 => Get passengers per route
+                tripsStream
+                        .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
+                        .aggregate(
+                                () -> "",
+                                (key, value, aggregate) -> aggregate.isEmpty() ? value.getPassengerName() : aggregate + ", " + value.getPassengerName(),
+                                Materialized.with(Serdes.Long(), Serdes.String())
+                        )
+                        .toStream()
+                        .map((key, value) -> {
+                                String newKey = String.valueOf(key);
+                                Results result = new Results(value);
+                                return new KeyValue<>(newKey, result);
+                        })
+                        .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
+                        .to("ResultsPassengersPerRoute", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 5 => Get available seats per route
                 routesStream
-                                .groupBy((key, value) -> value.getRouteId(),
-                                                Grouped.with(Serdes.Long(), new RouteSerde()))
-                                .aggregate(
-                                                () -> 0,
-                                                (key, value, aggregate) -> aggregate + value.getCapacity(),
-                                                Materialized.with(Serdes.Long(), Serdes.Integer()))
-                                .toStream()
-                                .peek((key, value) -> System.out
-                                                .println("Available seats for route " + key + ": " + value))
-                                .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
+                        .groupBy((key, value) -> value.getRouteId(),
+                                        Grouped.with(Serdes.Long(), new RouteSerde()))
+                        .aggregate(
+                                        () -> 0,
+                                        (key, value, aggregate) -> aggregate + value.getCapacity(),
+                                        Materialized.with(Serdes.Long(), Serdes.Integer()))
+                        .toStream()
+                        .peek((key, value) -> System.out
+                                        .println("Available seats for route " + key + ": " + value))
+                        .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
 
                 // 6 => Occupancy percentage per route
                 tripsStream
-                                .groupBy((key, value) -> value.getRouteId(),
-                                                Grouped.with(Serdes.Long(), new TripSerde()))
-                                .count(Materialized.with(Serdes.Long(), Serdes.Long())) // Count passengers per route
-                                .join(
-                                                routesStream
-                                                                .groupBy((key, value) -> value.getRouteId(),
-                                                                                Grouped.with(Serdes.Long(),
-                                                                                                new RouteSerde()))
-                                                                .aggregate(
-                                                                                () -> 0,
-                                                                                (key, value, aggregate) -> aggregate
-                                                                                                + value.getCapacity(),
-                                                                                Materialized.with(Serdes.Long(),
-                                                                                                Serdes.Integer())),
-                                                (passengerCount, availableSeats) -> {
-                                                        double occupancy = (availableSeats == 0) ? 0
-                                                                        : (double) passengerCount / availableSeats
-                                                                                        * 100;
-                                                        return String.format("%.2f%%", occupancy); // Format as
-                                                                                                   // percentage
-                                                },
-                                                Materialized.with(Serdes.Long(), Serdes.String()))
-                                .toStream()
-                                .peek((key, value) -> System.out
-                                                .println("Occupancy PODRE for route " + key + ": " + value))
-                                .to("Results-OccupancyPercentagePerRoute",
-                                                Produced.with(Serdes.Long(), Serdes.String()));
+                        .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
+                        .count(Materialized.with(Serdes.Long(), Serdes.Long())) // Count passengers per route
+                        .join(
+                                routesStream
+                                        .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new RouteSerde()))
+                                        .aggregate(
+                                                () -> 0,
+                                                (key, value, aggregate) -> aggregate + value.getCapacity(),
+                                                Materialized.with(Serdes.Long(), Serdes.Integer())),
+                                        (passengerCount, availableSeats) -> {
+                                                double occupancy = (availableSeats == 0) ? 0 : (double) passengerCount / availableSeats * 100;
+                                                return String.format("%.2f%%", occupancy);
+                                        },
+                                        Materialized.with(Serdes.Long(), Serdes.String()))
+                        .toStream()
+                        .peek((key, value) -> System.out.println("Occupancy PODRE for route " + key + ": " + value)) //! ??????
+                        .to("Results-OccupancyPercentagePerRoute", Produced.with(Serdes.Long(), Serdes.String()));
 
                 // 7 => Count total number of passengers
                 tripsStream
-                                .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new TripSerde()))
-                                .count(Materialized.with(Serdes.String(), Serdes.Long()))
-                                .toStream()
-                                .peek((key, value) -> System.out.println("Total number of passengers: " + value))
-                                .to("Results-TotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
-
-                KafkaStreams streams = new KafkaStreams(builder.build(), props);
-                streams.start();
+                        .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new TripSerde()))
+                        .count(Materialized.with(Serdes.String(), Serdes.Long()))
+                        .toStream()
+                        .peek((key, value) -> System.out.println("Total number of passengers: " + value))
+                        .to("Results-TotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
 
                 // 8 => Get total seating available for all routes
                 routesStream
@@ -123,7 +107,7 @@ public class KafkaStreamsApp {
 
         
                 // 10 => Get the average number of passengers per transport type
-                tripsStream
+                /* tripsStream
                 .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Agrupar por tipo de transporte
                 .aggregate(
                 () -> new long[]{0, 0}, // Array [0] -> total de passageiros, [1] -> número de viagens
@@ -142,9 +126,10 @@ public class KafkaStreamsApp {
                 return String.format("Average passengers per trip: %.2f", averagePassengers); // Formatar média
                 })
                 .peek((key, value) -> System.out.println("Average passengers for transport type " + key + ": " + value))
-                .to("Results-AveragePassengersPerTransportType", Produced.with(Serdes.String(), Serdes.String())); // Enviar o resultado para o tópico Kafka
+                .to("Results-AveragePassengersPerTransportType", Produced.with(Serdes.String(), Serdes.String()));  */// Enviar o resultado para o tópico Kafka
 
-
+                KafkaStreams streams = new KafkaStreams(builder.build(), props);
+                streams.start();
 
                 Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
         }
