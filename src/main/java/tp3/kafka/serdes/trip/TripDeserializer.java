@@ -1,14 +1,14 @@
-package tp3.serdes.route;
+package tp3.kafka.serdes.trip;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import tp3.persistence.entity.Route;
+import tp3.persistence.entity.Trip;
 
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.Map;
 
-public class RouteDeserializer implements Deserializer<Route> {
+public class TripDeserializer implements Deserializer<Trip> {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -16,11 +16,11 @@ public class RouteDeserializer implements Deserializer<Route> {
     }
 
     @Override
-    public Route deserialize(String topic, byte[] data) {
+    public Trip deserialize(String topic, byte[] data) {
         try {
-            return objectMapper.readValue(data, Route.class);
+            return objectMapper.readValue(data, Trip.class);
         } catch (Exception e) {
-            throw new RuntimeException("Error deserializing Route object", e);
+            throw new RuntimeException("Error deserializing Trip object", e);
         }
     }
 

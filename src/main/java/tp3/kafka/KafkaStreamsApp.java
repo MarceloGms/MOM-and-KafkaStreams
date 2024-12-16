@@ -10,10 +10,10 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 
+import tp3.kafka.serdes.route.RouteSerde;
+import tp3.kafka.serdes.trip.TripSerde;
 import tp3.persistence.entity.Route;
 import tp3.persistence.entity.Trip;
-import tp3.serdes.route.RouteSerde;
-import tp3.serdes.trip.TripSerde;
 
 import java.util.Properties;
 
@@ -34,27 +34,27 @@ public class KafkaStreamsApp {
 
         // 4 => Get passengers per route
         tripsStream
-                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new TripSerde()))
+                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
                 .aggregate(
                         () -> "",
                         (key, value, aggregate) -> aggregate.isEmpty() ? value.getPassengerName() : aggregate + ", " + value.getPassengerName(),
-                        Materialized.with(Serdes.String(), Serdes.String())
+                        Materialized.with(Serdes.Long(), Serdes.String())
                 )
                 .toStream()
                 .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
-                .to("Results-PassengersPerRoute", Produced.with(Serdes.String(), Serdes.String()));
+                .to("Results-PassengersPerRoute", Produced.with(Serdes.Long(), Serdes.String()));
 
         // 5 => Get available seats per route
         routesStream
-                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.String(), new RouteSerde()))
+                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new RouteSerde()))
                 .aggregate(
                         () -> 0,
                         (key, value, aggregate) -> aggregate + value.getCapacity(),
-                        Materialized.with(Serdes.String(), Serdes.Integer())
+                        Materialized.with(Serdes.Long(), Serdes.Integer())
                 )
                 .toStream()
                 .peek((key, value) -> System.out.println("Available seats for route " + key + ": " + value))
-                .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.String(), Serdes.Integer()));
+                .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
 
         // 7 => Count total number of passengers
         tripsStream

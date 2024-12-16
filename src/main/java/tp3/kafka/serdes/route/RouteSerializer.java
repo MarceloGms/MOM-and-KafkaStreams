@@ -1,4 +1,4 @@
-package tp3.serdes.route;
+package tp3.kafka.serdes.route;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

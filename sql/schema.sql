@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS Supplier (
 
 -- Create Route table
 CREATE TABLE IF NOT EXISTS Route (
-    routeId VARCHAR(255) PRIMARY KEY,
+    routeId SERIAL PRIMARY KEY,
     origin VARCHAR(255) NOT NULL,
     destination VARCHAR(255) NOT NULL,
-    transportType VARCHAR(255) CHECK (transportType IN ('Bus', 'Taxi', 'Train', 'Metro', 'Scooter')) NOT NULL,
+    type VARCHAR(255) CHECK (type IN ('Bus', 'Taxi', 'Train', 'Metro', 'Scooter')) NOT NULL,
     operator VARCHAR(255) CHECK (operator IN ('OperatorA', 'OperatorB', 'OperatorC')) NOT NULL,
     capacity INT NOT NULL
 );

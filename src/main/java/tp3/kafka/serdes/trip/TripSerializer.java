@@ -1,4 +1,4 @@
-package tp3.serdes.trip;
+package tp3.kafka.serdes.trip;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

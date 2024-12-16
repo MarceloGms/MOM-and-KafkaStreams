@@ -4,7 +4,7 @@
        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
        "connection.url": "jdbc:postgresql://database:5432/project3?user=postgres&password=My01pass",
        "dialect.name": "PostgreSqlDatabaseDialect",
-       "topics": "project3toDB",
+       "topics": "Results-PassengersPerRoute,Results-AvailableSeatsPerRoute,Results-TotalPassengerCount",
        "auto.create": "true",
        "insert.mode": "upsert",
        "pk.mode": "record_value",

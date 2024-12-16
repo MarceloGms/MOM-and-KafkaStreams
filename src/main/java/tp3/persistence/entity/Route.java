@@ -1,5 +1,9 @@
 package tp3.persistence.entity;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -7,11 +11,14 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Entity
 public class Route {
-   private String routeId;
+   @Id
+   @GeneratedValue(strategy = GenerationType.IDENTITY)
+   private long routeId;
    private String origin;
    private String destination;
-   private String transportType;
+   private String type;
    private String operator;
    private int capacity;
 }

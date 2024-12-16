@@ -30,19 +30,19 @@ public class Routes {
       Producer<String, String> producer = new KafkaProducer<>(properties);
       ObjectMapper objectMapper = new ObjectMapper();
 
-      for (int i = 0; i < 100; i++) {
-            String routeId = "Route" + RANDOM.nextInt(10);
+      for (int i = 0; i < 10; i++) {
+            long routeId = RANDOM.nextInt(5);
             String origin = "City" + RANDOM.nextInt(10);
             String destination = "City" + RANDOM.nextInt(10);
             String transportType = TRANSPORT_TYPES[RANDOM.nextInt(TRANSPORT_TYPES.length)];
-            String operator = OPERATORS[RANDOM.nextInt(OPERATORS.length)];
+            String operator = OPERATORS[RANDOM.nextInt(10)];
             int capacity = RANDOM.nextInt(200) + 1;
 
             Route route = new Route(routeId, origin, destination, transportType, operator, capacity);
 
             try {
                String routeJson = objectMapper.writeValueAsString(route);
-               producer.send(new ProducerRecord<>(TOPIC, origin + "-" + destination, routeJson));
+               producer.send(new ProducerRecord<>(TOPIC, String.valueOf(routeId), routeJson));
                System.out.println("Sent route: " + routeJson);
             } catch (Exception e) {
                e.printStackTrace();

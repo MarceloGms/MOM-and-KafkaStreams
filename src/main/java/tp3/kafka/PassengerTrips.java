@@ -30,8 +30,8 @@ public class PassengerTrips {
         Producer<String, String> producer = new KafkaProducer<>(properties);
         ObjectMapper objectMapper = new ObjectMapper();
 
-        for (int i = 0; i < 100; i++) {
-            String routeId = "Route" + RANDOM.nextInt(10);
+        for (int i = 0; i < 10; i++) {
+            long routeId = RANDOM.nextInt(5);
             String passengerName = PASSENGER_NAMES[RANDOM.nextInt(PASSENGER_NAMES.length)];
             String origin = "City" + RANDOM.nextInt(10);
             String destination = "City" + RANDOM.nextInt(10);
@@ -41,7 +41,7 @@ public class PassengerTrips {
 
             try {
                 String tripJson = objectMapper.writeValueAsString(trip);
-                producer.send(new ProducerRecord<>(TOPIC, routeId, tripJson));
+                producer.send(new ProducerRecord<>(TOPIC, String.valueOf(routeId), tripJson));
                 System.out.println("Sent trip: " + tripJson);
             } catch (Exception e) {
                 e.printStackTrace();

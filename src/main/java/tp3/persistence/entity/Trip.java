@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Trip {
-   private String routeId;
+   private long routeId;
    private String passengerName;
    private String origin;
    private String destination;
