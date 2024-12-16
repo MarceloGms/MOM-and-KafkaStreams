@@ -10,6 +10,7 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 
+import tp3.kafka.serdes.results.ResultsSerde;
 import tp3.kafka.serdes.route.RouteSerde;
 import tp3.kafka.serdes.trip.TripSerde;
 import tp3.persistence.entity.Route;
@@ -42,7 +43,7 @@ public class KafkaStreamsApp {
                 )
                 .toStream()
                 .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
-                .to("Results-PassengersPerRoute", Produced.with(Serdes.Long(), Serdes.String()));
+                .to("Results-PassengersPerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
 
         // 5 => Get available seats per route
         routesStream

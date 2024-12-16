@@ -18,7 +18,12 @@ kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic account-balanc
 kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic test_topic --from-beginning
 
 # Create one topic with 3 partitions
-kafka-topics.sh --bootstrap-server broker1:9092 --create --topic credit-transactions --partitions 1 --config cleanup.policy=compact
+kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Routes --partitions 5 --config cleanup.policy=compact
+kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Trips --partitions 5 --config cleanup.policy=compact
+
+
+
+
 kafka-console-producer.sh --bootstrap-server broker1:9092 --topic test_topic_with_partitions
 kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic test_topic_with_partitions
 
