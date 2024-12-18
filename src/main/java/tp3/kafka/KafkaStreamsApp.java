@@ -1,5 +1,8 @@
 package tp3.kafka;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import org.apache.kafka.common.serialization.Serdes;
@@ -37,20 +40,26 @@ public class KafkaStreamsApp {
 
                 // 4 => Get passengers per route
                 tripsStream
-                        .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
+                        .groupBy(
+                                (key, value) -> value.getRouteId(),
+                                Grouped.with(Serdes.Long(), new TripSerde())
+                        )
                         .aggregate(
                                 () -> "",
-                                (key, value, aggregate) -> aggregate.isEmpty() ? value.getPassengerName() : aggregate + ", " + value.getPassengerName(),
+                                (key, value, aggregate) -> aggregate.isEmpty()
+                                ? value.getPassengerName()
+                                : aggregate + ", " + value.getPassengerName(),
                                 Materialized.with(Serdes.Long(), Serdes.String())
                         )
                         .toStream()
-                        .map((key, value) -> {
-                                String newKey = String.valueOf(key);
-                                Results result = new Results(value);
-                                return new KeyValue<>(newKey, result);
-                        })
-                        .peek((key, value) -> System.out.println("Passengers for route " + key + ": " + value))
-                        .to("ResultsPassengersPerRoute", Produced.with(Serdes.String(), new ResultsSerde()));
+                        .mapValues((routeId, passengerList) -> 
+                                createResult(routeId, passengerList, "ResultsPassengersPerRoute")
+                        )
+                        .peek((key, value) -> 
+                                System.out.println("Passengers for route " + key + ": " + value)
+                        )
+                        .to("ResultsPassengersPerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
+
 
                 // 5 => Get available seats per route
                 routesStream
@@ -82,7 +91,7 @@ public class KafkaStreamsApp {
                                         },
                                         Materialized.with(Serdes.Long(), Serdes.String()))
                         .toStream()
-                        .peek((key, value) -> System.out.println("Occupancy PODRE for route " + key + ": " + value)) //! ??????
+                        .peek((key, value) -> System.out.println("Occupancy for route " + key + ": " + value))
                         .to("Results-OccupancyPercentagePerRoute", Produced.with(Serdes.Long(), Serdes.String()));
 
                 // 7 => Count total number of passengers
@@ -132,5 +141,34 @@ public class KafkaStreamsApp {
                 streams.start();
 
                 Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
+        }
+
+        private static Results createResult(Long id, String value, String schemaName) {
+                return new Results(
+                        getSchemaDefinition(schemaName),
+                        Map.of(
+                        "id", String.valueOf(id),
+                        "result", value
+                        )
+                );
+        }
+
+        private static Map<String, Object> getSchemaDefinition(String name) {
+                return Map.of(
+                    "type", "struct",
+                    "fields", List.of(
+                        Map.of("field", "id", "type", "string"),
+                        Map.of("field", "result", "type", "string")
+                    ),
+                    "optional", false,
+                    "name", name
+                );
+        }
+
+        private static Map<String, Object> transformToPayload(Long id, String value) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("id", String.valueOf(id));
+                payload.put("result", value);
+                return payload;
         }
 }
