@@ -55,14 +55,13 @@ public class KafkaStreamsApp {
                                 Materialized.with(Serdes.Long(), Serdes.String())
                         )
                         .toStream()
-                        .mapValues((routeId, passengerList) -> 
-                                createResult(routeId, passengerList, "ResultsPassengersPerRoute")
-                        )
                         .peek((key, value) -> 
                                 System.out.println("Passengers for route " + key + ": " + value)
                         )
+                        .mapValues((routeId, passengerList) -> 
+                                createResult(routeId, passengerList, "ResultsPassengersPerRoute")
+                        )
                         .to("ResultsPassengersPerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
-
 
                 // 5 => Get available seats per route
                 routesStream
@@ -74,8 +73,12 @@ public class KafkaStreamsApp {
                                         Materialized.with(Serdes.Long(), Serdes.Integer()))
                         .toStream()
                         .peek((key, value) -> System.out
-                                        .println("Available seats for route " + key + ": " + value))
-                        .to("Results-AvailableSeatsPerRoute", Produced.with(Serdes.Long(), Serdes.Integer()));
+                                .println("Available seats for route " + key + ": " + value)
+                        )
+                        .mapValues((routeId, availableSeats) -> 
+                                createResult(routeId, String.valueOf(availableSeats), "ResultsAvailableSeatsPerRoute")
+                        )
+                        .to("ResultsAvailableSeatsPerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
 
                 // 6 => Occupancy percentage per route
                 tripsStream
@@ -97,7 +100,8 @@ public class KafkaStreamsApp {
                         )
                         .toStream()
                         .peek((key, value) -> System.out.println("Occupancy for route " + key + ": " + value))
-                        .to("Results-OccupancyPercentagePerRoute", Produced.with(Serdes.Long(), Serdes.String()));
+                        .mapValues((routeId, occupancy) -> createResult(routeId, occupancy, "ResultsOccupancyPercentagePerRoute"))
+                        .to("ResultsOccupancyPercentagePerRoute", Produced.with(Serdes.Long(), new ResultsSerde()));
 
 
                 // 7 => Count total number of passengers
@@ -106,19 +110,21 @@ public class KafkaStreamsApp {
                         .count(Materialized.with(Serdes.String(), Serdes.Long()))
                         .toStream()
                         .peek((key, value) -> System.out.println("Total number of passengers: " + value))
-                        .to("Results-TotalPassengerCount", Produced.with(Serdes.String(), Serdes.Long()));
+                        .mapValues((key, value) -> createResult(key, String.valueOf(value), "ResultsTotalPassengerCount"))
+                        .to("ResultsTotalPassengerCount", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 8 => Get total seating available for all routes
                 routesStream
                         .map((key, value) -> KeyValue.pair("total", value.getCapacity()))  // Map para uma chave comum "total" para todas as rotas
                         .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))  // Agrupar todas as entradas pela chave "total"
                         .reduce(
-                        Integer::sum,  // Somar os assentos disponíveis para todas as rotas
-                        Materialized.with(Serdes.String(), Serdes.Integer())  // Definir o tipo de store de estado para a agregação
+                                Integer::sum,  // Somar os assentos disponíveis para todas as rotas
+                                Materialized.with(Serdes.String(), Serdes.Integer())  // Definir o tipo de store de estado para a agregação
                         )
                         .toStream()
                         .peek((key, value) -> System.out.println("Total seating available for all routes: " + value))  // Exibir o resultado
-                        .to("Results-TotalSeatingAvailable", Produced.with(Serdes.String(), Serdes.Integer()));  // Enviar o resultado para um tópico Kafka
+                        .mapValues((key, value) -> createResult(key, String.valueOf(value), "ResultsTotalSeatingAvailable"))  // Criar um objeto Results
+                        .to("ResultsTotalSeatingAvailable", Produced.with(Serdes.String(), new ResultsSerde()));  // Enviar o resultado para um tópico Kafka
 
         
                 // 9 => Get the occupancy percentage total (for all routes)
@@ -139,7 +145,8 @@ public class KafkaStreamsApp {
                         )
                         .toStream()
                         .peek((key, value) -> System.out.println("Total occupancy percentage: " + value)) // Log the result
-                        .to("Results-TotalOccupancyPercentage", Produced.with(Serdes.String(), Serdes.String())); // Publish to Kafka topic
+                        .mapValues((key, value) -> createResult(key, value, "ResultsTotalOccupancyPercentage")) // Create a Results object
+                        .to("ResultsTotalOccupancyPercentage", Produced.with(Serdes.String(), new ResultsSerde())); // Publish to Kafka topic
 
         
                 // 10 => Get the average number of passengers per transport type
@@ -180,7 +187,8 @@ public class KafkaStreamsApp {
                                 return String.format("Average passengers per trip: %.2f", averagePassengers); // Formatar média
                         })
                         .peek((key, value) -> System.out.println("Average passengers for transport type " + key + ": " + value))
-                        .to("Results-AveragePassengersPerTransportType", Produced.with(Serdes.String(), Serdes.String()));
+                        .mapValues((key, value) -> createResult(key, value, "ResultsAveragePassengersPerTransportType"))
+                        .to("ResultsAveragePassengersPerTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
 
                 // 11 => Get the transport type with the highest number of served passengers (only one if there is a tie)
@@ -211,7 +219,7 @@ public class KafkaStreamsApp {
                         return KeyValue.pair("HighestTransportType", key + ": " + value);
                 })
                 .peek((key, value) -> System.out.println("Transport type with the highest passengers: " + value)) // Log the result
-                .to("Results-HighestTransportType", Produced.with(Serdes.String(), Serdes.String())); // Publish to Kafka topic
+                .to("ResultsHighestTransportType", Produced.with(Serdes.String(), Serdes.String())); // Publish to Kafka topic
 
             
 
@@ -225,6 +233,16 @@ public class KafkaStreamsApp {
                         getSchemaDefinition(schemaName),
                         Map.of(
                         "id", String.valueOf(id),
+                        "result", value
+                        )
+                );
+        }
+
+        private static Results createResult(String id, String value, String schemaName) {
+                return new Results(
+                        getSchemaDefinition(schemaName),
+                        Map.of(
+                        "id", id,
                         "result", value
                         )
                 );

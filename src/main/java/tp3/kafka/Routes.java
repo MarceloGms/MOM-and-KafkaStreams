@@ -31,7 +31,7 @@ public class Routes {
       ObjectMapper objectMapper = new ObjectMapper();
 
       for (int i = 0; i < 10; i++) {
-         long routeId = RANDOM.nextInt(5);
+         long routeId = RANDOM.nextInt(5) + 1;
          String origin = "City" + RANDOM.nextInt(10);
          String destination = "City" + RANDOM.nextInt(10);
          String transportType = TRANSPORT_TYPES[RANDOM.nextInt(TRANSPORT_TYPES.length)];

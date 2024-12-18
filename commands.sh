@@ -50,7 +50,12 @@ PGPASSWORD=My01pass psql -h database -p 5432 -U postgres -d project3
 
 cd config
 curl -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://connect:8083/connectors -d @source.json
+curl -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://connect:8083/connectors -d @source-capacities.json
 curl -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://connect:8083/connectors -d @sink.json
 
 curl -X DELETE -H "Accept:application/json" -H  "Content-Type:application/json" http://connect:8083/connectors/jdbc-source-suppliers
+curl -X DELETE -H "Accept:application/json" -H  "Content-Type:application/json" http://connect:8083/connectors/jdbc-source-capacities
 curl -X DELETE -H "Accept:application/json" -H  "Content-Type:application/json" http://connect:8083/connectors/jdbc-postgresql-sink
+
+kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic DBInfo 
+# --from-beginning

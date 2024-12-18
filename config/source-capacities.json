@@ -1,0 +1,13 @@
+{
+   "name": "jdbc-source-capacities",
+   "config": {
+       "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector",
+       "connection.url": "jdbc:postgresql://database:5432/project3",
+       "connection.user": "postgres",
+       "connection.password": "My01pass",
+       "mode": "bulk",
+       "query": "SELECT capacity FROM Route",
+       "poll.interval.ms": 60000,
+       "topic.prefix": "DBInfo"
+   }
+}
