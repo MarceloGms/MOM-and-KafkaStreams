@@ -66,3 +66,4 @@ local.properties
 commands.sh
 !lib/kafka-connect-jdbc-10.8.0.jar
 !lib/postgresql-42.7.4.jar
+.idea
