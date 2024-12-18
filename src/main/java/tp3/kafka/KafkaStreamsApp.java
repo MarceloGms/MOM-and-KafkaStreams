@@ -92,11 +92,11 @@ public class KafkaStreamsApp {
                                         (key, value, aggregate) -> aggregate + value.getCapacity(),
                                         Materialized.with(Serdes.Long(), Serdes.Integer())
                                 ),
-                        (passengerCount, availableSeats) -> {
-                                double occupancy = (availableSeats == 0) ? 0 : (double) passengerCount / availableSeats * 100;
-                                return String.format("%.2f%%", occupancy);
-                        },
-                        Materialized.with(Serdes.Long(), Serdes.String())
+                                (passengerCount, availableSeats) -> {
+                                        double occupancy = (availableSeats == 0) ? 0 : (double) passengerCount / availableSeats * 100;
+                                        return String.format("%.2f%%", occupancy);
+                                },
+                                Materialized.with(Serdes.Long(), Serdes.String())
                         )
                         .toStream()
                         .peek((key, value) -> System.out.println("Occupancy for route " + key + ": " + value))
@@ -184,7 +184,7 @@ public class KafkaStreamsApp {
                                 long totalPassengers = value[0]; // Total de passageiros
                                 long totalTrips = value[1]; // Total de viagens
                                 double averagePassengers = totalTrips == 0 ? 0 : (double) totalPassengers / totalTrips; // Calcular média
-                                return String.format("Average passengers per trip: %.2f", averagePassengers); // Formatar média
+                                return String.format("%.2f", averagePassengers); // Formatar média
                         })
                         .peek((key, value) -> System.out.println("Average passengers for transport type " + key + ": " + value))
                         .mapValues((key, value) -> createResult(key, value, "ResultsAveragePassengersPerTransportType"))
@@ -220,6 +220,19 @@ public class KafkaStreamsApp {
                 })
                 .peek((key, value) -> System.out.println("Transport type with the highest passengers: " + value)) // Log the result
                 .to("ResultsHighestTransportType", Produced.with(Serdes.String(), Serdes.String())); // Publish to Kafka topic
+
+                /* tripsStream
+                        .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde()))
+                        .count(Materialized.with(Serdes.String(), Serdes.Long()))
+                        .toStream()
+                        .reduce(
+                                (entry1, entry2) -> entry1.value > entry2.value ? entry1 : entry2, // Compare based on passenger count
+                                Materialized.with(Serdes.String(), Serdes.Long())
+                        )
+                        .toStream()
+                        .peek((key, value) -> System.out.println("Highest transport type: " + key + " with " + value + " passengers"))
+                        .to("ResultsHighestTransportType", Produced.with(Serdes.String(), Serdes.String())); */
+
 
             
 

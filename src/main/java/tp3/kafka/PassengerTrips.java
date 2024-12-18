@@ -18,8 +18,8 @@ public class PassengerTrips {
     private static final String TOPIC = "Trips";
     private static final String BROKER = "broker1:9092";
     private static final Random RANDOM = new Random();
-    private static final String[] TRANSPORT_TYPES = {"Bus", "Taxi", "Train", "Metro", "Scooter"};
-    private static final String[] PASSENGER_NAMES = {"Alice", "Bob", "Charlie", "David", "Eve"};
+    private static final String[] TRANSPORT_TYPES = { "Bus", "Taxi", "Train", "Metro", "Scooter" };
+    private static final String[] PASSENGER_NAMES = { "Alice", "Bob", "Charlie", "David", "Eve" };
 
     public static void main(String[] args) {
         Properties properties = new Properties();

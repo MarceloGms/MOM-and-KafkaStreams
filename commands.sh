@@ -20,9 +20,6 @@ kafka-console-consumer.sh --bootstrap-server broker1:9092 --topic test_topic --f
 # Create topics
 kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Routes --partitions 5 --config cleanup.policy=compact
 kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Trips --partitions 5 --config cleanup.policy=compact
-# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-PassengersPerRoute --partitions 3 --config cleanup.policy=compact
-# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-AvailableSeatsPerRoute --partitions 3 --config cleanup.policy=compact
-# kafka-topics.sh --bootstrap-server broker1:9092 --create --topic Results-TotalPassengerCount --partitions 3 --config cleanup.policy=compact
 
 # Describe a given topic
 kafka-topics.sh --bootstrap-server broker1:9092 --describe --topic test_topic_with_partitions
