@@ -21,4 +21,8 @@ public class Route {
    private String type;
    private String operator;
    private int capacity;
+
+   public String getType() {
+      return type;
+  }
 }
