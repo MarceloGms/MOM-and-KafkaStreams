@@ -18,11 +18,7 @@ public class Route {
    private long routeId;
    private String origin;
    private String destination;
-   private String type;
+   private String type; // transport type
    private String operator;
    private int capacity;
-
-   public String getType() {
-      return type;
-  }
 }
