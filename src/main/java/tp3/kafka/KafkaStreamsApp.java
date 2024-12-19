@@ -3,6 +3,8 @@ package tp3.kafka;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -11,8 +13,6 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Grouped;
-import org.apache.kafka.streams.kstream.JoinWindows;
-import org.apache.kafka.streams.kstream.Joined;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
@@ -24,7 +24,6 @@ import org.apache.kafka.streams.kstream.TimeWindows;
 import java.time.Duration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ser.std.StdArraySerializers.IntArraySerializer;
 
 import tp3.kafka.serdes.results.ResultsSerde;
 import tp3.kafka.serdes.route.RouteSerde;
@@ -113,37 +112,37 @@ public class KafkaStreamsApp {
 
                 // 8 => Get total seating available for all routes
                 routesStream
-                        .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new RouteSerde())) // Group by a common key "total"
+                        .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new RouteSerde()))
                         .aggregate(
                                 () -> 0,
-                                (key, value, aggregate) -> aggregate + value.getCapacity(), // Sum total available seats
-                                Materialized.with(Serdes.String(), Serdes.Integer()) // Define the state store type for the aggregation
+                                (key, value, aggregate) -> aggregate + value.getCapacity(),
+                                Materialized.with(Serdes.String(), Serdes.Integer())
                         )
                         .toStream()
-                        .peek((key, value) -> System.out.println("Total seating available for all routes: " + value)) // Log the result
-                        .mapValues((key, value) -> createResult(key, String.valueOf(value), "ResultsTotalSeatingAvailable")) // Create a Results object
-                        .to("ResultsTotalSeatingAvailable", Produced.with(Serdes.String(), new ResultsSerde())); // Publish to Kafka topic
+                        .peek((key, value) -> System.out.println("Total seating available for all routes: " + value))
+                        .mapValues((key, value) -> createResult(key, String.valueOf(value), "ResultsTotalSeatingAvailable"))
+                        .to("ResultsTotalSeatingAvailable", Produced.with(Serdes.String(), new ResultsSerde()));
 
         
                 // 9 => Get the occupancy percentage total (for all routes)
                 tripsStream
-                        .map((key, value) -> KeyValue.pair("total", 1L)) // Map each trip to a common key "total"
-                        .groupByKey(Grouped.with(Serdes.String(), Serdes.Long())) // Group by the common key
-                        .reduce(Long::sum, Materialized.with(Serdes.String(), Serdes.Long())) // Sum total passengers
+                        .map((key, value) -> KeyValue.pair("total", 1L))
+                        .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
+                        .reduce(Long::sum, Materialized.with(Serdes.String(), Serdes.Long())) 
                         .join(routesStream
-                                .map((key, value) -> KeyValue.pair("total", value.getCapacity())) // Map each route to a common key "total"
-                                .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer())) // Group by the common key
-                                .reduce(Integer::sum, Materialized.with(Serdes.String(), Serdes.Integer())), // Sum total available seats
+                                .map((key, value) -> KeyValue.pair("total", value.getCapacity()))
+                                .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))
+                                .reduce(Integer::sum, Materialized.with(Serdes.String(), Serdes.Integer())),
                                 (totalPassengers, totalSeats) -> {
-                                        double occupancy = (totalSeats == 0) ? 0 : (double) totalPassengers / totalSeats * 100; // Calculate total occupancy
-                                        return String.format("%.2f%%", occupancy); // Format as percentage
+                                        double occupancy = (totalSeats == 0) ? 0 : (double) totalPassengers / totalSeats * 100;
+                                        return String.format("%.2f%%", occupancy);
                                 },
-                                Materialized.with(Serdes.String(), Serdes.String()) // Materialize the store for the result
+                                Materialized.with(Serdes.String(), Serdes.String())
                         )
                         .toStream()
-                        .peek((key, value) -> System.out.println("Total occupancy percentage: " + value)) // Log the result
-                        .mapValues((key, value) -> createResult(key, value, "ResultsTotalOccupancyPercentage")) // Create a Results object
-                        .to("ResultsTotalOccupancyPercentage", Produced.with(Serdes.String(), new ResultsSerde())); // Publish to Kafka topic
+                        .peek((key, value) -> System.out.println("Total occupancy percentage: " + value))
+                        .mapValues((key, value) -> createResult(key, value, "ResultsTotalOccupancyPercentage"))
+                        .to("ResultsTotalOccupancyPercentage", Produced.with(Serdes.String(), new ResultsSerde()));
 
         
                 // 10 => Get the average number of passengers per transport type
@@ -190,7 +189,6 @@ public class KafkaStreamsApp {
 
 
                 // 11 => Get the transport type with the highest number of served passengers (only one if there is a tie)
-                //! ver pq dois groupBy
                 tripsStream
                         .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Group by transport type
                         .count(Materialized.with(Serdes.String(), Serdes.Long())) // Count the number of passengers for each transport type
@@ -205,8 +203,6 @@ public class KafkaStreamsApp {
                         .to("ResultsHighestTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 12 => Get the routes with the least occupancy per transport type
-                // Aggregate passengers per route
-
                 KTable<String, Route> routeTable = routesStream
                 .selectKey((key, value) -> key.toString())
                 .toTable(Materialized.with(Serdes.String(), new RouteSerde()));
@@ -224,36 +220,42 @@ public class KafkaStreamsApp {
                 KTable<String, String> occupancyByTypeTable = occupancyStream
                 .groupBy((key, value) -> value.split(" Type: ")[1].split(" ")[0], Grouped.with(Serdes.String(), Serdes.String()))
                 .aggregate(
-                        // Initialize with an empty string, which will store the routeId and occupancy
                         () -> "",
-                        // Compare and choose the route with the least occupancy
                         (key, value, aggregate) -> {
-                                // Extract the routeId and occupancy from the value string
                                 double currentOccupancy = Double.parseDouble(value.split(" Occupancy: ")[1]);
                                 
-                                // If the aggregate is empty, initialize it with the current value
                                 if (aggregate.isEmpty()) {
-                                        return value;  // Return the current route with routeId and occupancy
+                                        return value;
                                 }
 
-                                // Extract the aggregate occupancy and routeId
                                 double aggregateOccupancy = Double.parseDouble(aggregate.split(" Occupancy: ")[1]);
 
-                                // Choose the route with the least occupancy
                                 if (currentOccupancy < aggregateOccupancy) {
-                                        return value;  // Current route has lower occupancy, so update the aggregate
+                                        return value;
                                 } else {
-                                        return aggregate;  // Existing route still has the least occupancy
+                                        return aggregate;
                                 }
                         }
                 )
                 .mapValues(value -> {
-                        // Extract routeId and occupancy for the final result format
-                        String routeId = value.split(" RouteId: ")[1].split(" ")[0];
-                        double occupancy = Double.parseDouble(value.split(" Occupancy: ")[1]);
-                        // Return formatted result
-                        return routeId + " -> " + occupancy;
-                });
+                        try {
+                            Pattern pattern = Pattern.compile("RouteId:\\s*(\\d+)\\s*Type:\\s*\\w+\\s*Occupancy:\\s*([\\d\\.]+)");
+                            Matcher matcher = pattern.matcher(value);
+                    
+                            if (matcher.find()) {
+                                String routeId = matcher.group(1);
+                                double occupancy = Double.parseDouble(matcher.group(2));
+                    
+                                return "RouteId: " + routeId + " -> Occupancy: " + occupancy;
+                            } else {
+                                throw new IllegalArgumentException("Formato inválido: " + value);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error formatting final value: " + value);
+                            e.printStackTrace();
+                            return "ERROR";
+                        }
+                    });
 
                 occupancyByTypeTable
                         .toStream()
@@ -278,46 +280,8 @@ public class KafkaStreamsApp {
                         .mapValues((key, value) -> createResult("mostUsed", "" + key + " -> " + value, "ResultsMostUsedTransportType"))
                         .to("ResultsMostUsedTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
-                /* // 14 => Get the least occupied transport type in the last hour using a tumbling window
+                /// 14 => Get the least occupied transport type in the last hour using a tumbling window
 
-// Join tripsStream with routesStream to get transportType and capacity
-tripsStream
-.groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), Serdes.serdeFrom(Trip.class))) // Group by transport type
-.aggregate(
-    () -> new int[]{0, 0}, // [passengerCount, capacity]
-    (key, value, aggregate) -> {
-        aggregate[0] += 1; // Increment passenger count
-        // You can assume that each transportType corresponds to a constant capacity
-        // For simplicity, we'll join with routesStream later to get actual capacities.
-        return aggregate;
-    }
-)
-.toStream()
-.join(
-    routesStream
-        .groupBy((key, value) -> value.getType(), Grouped.with(Serdes.String(), Serdes.serdeFrom(Route.class))) // Group by transportType
-        .aggregate(
-            () -> 0, // Initial capacity for each transportType
-            (key, value, aggregate) -> aggregate + value.getCapacity(), // Aggregate capacity for each transportType
-            Materialized.with(Serdes.String(), Serdes.Integer()) // Serializer for Integer (capacity)
-        )
-        .toStream(),
-    (occupancy, capacity) -> {
-        // Calculate occupancy percentage
-        double occupancyRate = (capacity == 0) ? 0 : (double) occupancy[0] / capacity * 100;
-        return occupancyRate;
-    },
-    JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofHours(1)) // Ensure we join within the window
-)
-.groupByKey(Grouped.with(Serdes.String(), Serdes.Double())) // Group by transportType and occupancy rate
-.reduce(
-    (rate1, rate2) -> rate1 < rate2 ? rate1 : rate2, // Find the least occupied transport type
-    Materialized.with(Serdes.String(), Serdes.Double()) // Store the result as occupancy rate
-)
-.toStream()
-.peek((key, value) -> System.out.println("Least occupied transport type in the last hour: " + key + " with occupancy rate: " + value))
-.mapValues((key, value) -> createResult("leastOccupied", key + " -> " + value, "ResultsLeastOccupiedTransportType"))
-.to("ResultsLeastOccupiedTransportType", Produced.with(Serdes.String(), new ResultsSerde())); */
 
 
 
