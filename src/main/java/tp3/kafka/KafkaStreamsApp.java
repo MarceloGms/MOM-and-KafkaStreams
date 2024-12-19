@@ -49,8 +49,8 @@ public class KafkaStreamsApp {
 
                 KStream<String, Trip> tripsStream = builder.stream("Trips", Consumed.with(Serdes.String(), new TripSerde()));
 
-                KStream<String, Route> routesStream = builder.stream("Routes", Consumed.with(Serdes.String(), new RouteSerde()));
-
+                KStream<Long, Route> routesStream = builder.stream("Routes", Consumed.with(Serdes.String(), new RouteSerde()))
+                        .map((key, value) -> KeyValue.pair(value.getRouteId(), value));
 
                 // 4 => Get passengers per route
                 tripsStream
@@ -207,7 +207,9 @@ public class KafkaStreamsApp {
                 // 12 => Get the routes with the least occupancy per transport type
                 // Aggregate passengers per route
 
-                KTable<String, Route> routeTable = routesStream.toTable(Materialized.with(Serdes.String(), new RouteSerde()));
+                KTable<String, Route> routeTable = routesStream
+                .selectKey((key, value) -> key.toString())
+                .toTable(Materialized.with(Serdes.String(), new RouteSerde()));
 
                 KStream<String, String> occupancyStream = tripsStream.join(
                         routeTable,

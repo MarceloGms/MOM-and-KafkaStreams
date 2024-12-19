@@ -59,7 +59,7 @@ public class ResultsService {
    }
 
    public List<Map<String, Object>> getResults13() {
-      String sql = "SELECT * FROM \"Results13\"";
+      String sql = "SELECT * FROM \"ResultsMostUsedTransportType\"";
       return jdbcTemplate.queryForList(sql);
    }
 
