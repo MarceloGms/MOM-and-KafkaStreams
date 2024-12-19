@@ -145,6 +145,10 @@ public class KafkaStreamsApp {
 
         
                 // 10 => Get the average number of passengers per transport type
+
+                //! REVER ESTE
+
+                
                 tripsStream
                         .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Agrupar por tipo de transporte
                         .aggregate(
@@ -270,7 +274,7 @@ public class KafkaStreamsApp {
                 // 13 => Get the most used transport type in the last hour using a tumbling window, return only one if there is a tie
                 tripsStream
                 .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Agrupa por tipo de transporte
-                .windowedBy(TimeWindows.of(Duration.ofHours(1))) // Janela de tempo de uma hora
+                .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1))) // Janela de tempo de uma hora
                 .count(Materialized.with(Serdes.String(), Serdes.Long())) // Conta o número de passageiros por tipo
                 .toStream()
                 .groupBy((key, value) -> key.key(), Grouped.with(Serdes.String(), Serdes.Long())) // Mantém o agrupamento pelo tipo de transporte
@@ -285,20 +289,53 @@ public class KafkaStreamsApp {
 
 
                 // 14 => Get the least occupied transport type in the last hour (use a tumbling time window)
-                tripsStream
-                .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Agrupa por tipo de transporte
-                .windowedBy(TimeWindows.of(Duration.ofHours(1))) // Janela de tempo de uma hora
-                .count(Materialized.with(Serdes.String(), Serdes.Long())) // Conta o número de passageiros por tipo
-                .toStream()
-                .groupBy((key, value) -> key.key(), Grouped.with(Serdes.String(), Serdes.Long())) // Mantém o agrupamento pelo tipo de transporte
-                .reduce(
-                        (aggValue, newValue) -> aggValue < newValue ? aggValue : newValue, // Seleciona o transporte com menor número de passageiros
-                        Materialized.with(Serdes.String(), Serdes.Long())
+
+                //!     RESOLUÇAO DO BOT AINDA N VERIFICADA
+
+                occupancyStream
+                .groupBy((key, value) -> {
+                    String[] parts = value.split(" Type: ");
+                    if (parts.length > 1 && parts[1].contains(" ")) {
+                        return parts[1].split(" ")[0]; // Retorna o tipo de transporte
+                    }
+                    System.err.println("Invalid data for grouping: " + value);
+                    return "UNKNOWN"; // Tipo desconhecido
+                }, Grouped.with(Serdes.String(), Serdes.String()))
+                .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1)))
+                .aggregate(
+                    () -> "RouteId: NONE Occupancy: 9999.0",
+                    (key, value, aggregate) -> {
+                        try {
+                            double currentOccupancy = Double.parseDouble(value.split(" Occupancy: ")[1]);
+                            double aggregateOccupancy = Double.parseDouble(aggregate.split(" Occupancy: ")[1]);
+                            return currentOccupancy < aggregateOccupancy ? value : aggregate;
+                        } catch (Exception e) {
+                            System.err.println("Error during aggregation: " + value + ", aggregate: " + aggregate);
+                            return aggregate; // Ignorar em caso de erro
+                        }
+                    },
+                    Materialized.with(Serdes.String(), Serdes.String())
                 )
                 .toStream()
-                .peek((key, value) -> System.out.println("Least occupied transport type in the last hour: " + key + " with " + value + " passengers"))
-                .map((key, value) -> KeyValue.pair("LeastOccupiedTransportType", key + ": " + value)) // Mantém a associação com o tipo de transporte
-                .to("ResultsLeastOccupiedTransportType", Produced.with(Serdes.String(), Serdes.String()));
+                .map((key, value) -> KeyValue.pair(key.key(), value))
+                .groupByKey(Grouped.with(Serdes.String(), Serdes.String()))
+                .reduce(
+                    (value1, value2) -> {
+                        try {
+                            double occupancy1 = Double.parseDouble(value1.split(" Occupancy: ")[1]);
+                            double occupancy2 = Double.parseDouble(value2.split(" Occupancy: ")[1]);
+                            return occupancy1 < occupancy2 ? value1 : value2;
+                        } catch (Exception e) {
+                            System.err.println("Error during reduction: " + value1 + ", " + value2);
+                            return value1; // Ignorar em caso de erro
+                        }
+                    },
+                    Materialized.with(Serdes.String(), Serdes.String())
+                )
+                .toStream()
+                .peek((key, value) -> System.out.println("Least occupied transport type in the last hour: " + key + " with " + value))
+                .mapValues((key, value) -> createResult(key, value, "ResultsLeastOccupiedTransportType"))
+                .to("ResultsLeastOccupiedTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 16 => Get the name of the passenger with the most trips 
                 tripsStream
