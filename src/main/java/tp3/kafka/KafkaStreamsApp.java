@@ -291,94 +291,108 @@ public class KafkaStreamsApp {
 
 
                 // 14 => Get the least occupied transport type in the last hour (use a tumbling time window)
-
                 // Group by transport type and calculate the least occupancy in the last hour
                 occupancyStream
-                        .groupBy(
-                                (key, value) -> value.split(" Type: ")[1].split(" ")[0], // Group by transport type
-                                Grouped.with(Serdes.String(), Serdes.String())
-                        )
-                        .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1))) // Tumbling window of 1 hour
-                        .aggregate(
-                                () -> 0.0, // Initialize total occupancy to 0
-                                (key, value, aggregate) -> {
-                                        // Extract occupancy value
-                                        double currentOccupancy = Double.parseDouble(value.split(" Occupancy: ")[1]);
-                                        // Sum the occupancy for this transport type
-                                        return aggregate + currentOccupancy;
-                                },
-                                Materialized.with(Serdes.String(), Serdes.Double())
-                        )
-                        .toStream()
-                        .map((windowedKey, value) -> {
-                                // Extract transport type from Windowed<String>
-                                String transportType = windowedKey.key();
-                                return KeyValue.pair(transportType, value);
-                        })
-                        .groupBy(
-                                (transportType, totalOccupancy) -> "leastOccupied", // Use a constant key for comparison
-                                Grouped.with(Serdes.String(), Serdes.Double())
-                        )
-                        .reduce(
-                                (aggValue, newValue) -> aggValue < newValue ? aggValue : newValue // Keep the least total occupancy
-                        )
-                        .toStream()
-                        .map((key, value) -> {
-                                String transportType = "Transport Type"; // Replace with appropriate extraction logic if needed
-                                return KeyValue.pair("least occupied transport type", transportType + " -> " + value);
-                        })
-                        .peek((key, value) -> System.out.println(key + ": " + value))
-                        .mapValues((key, value) -> createResult(key, value, "ResultsLeastOccupiedTransportType"))
-                        .to("ReaultsLeastOccupiedTransportTypeLastHour", Produced.with(Serdes.String(), new ResultsSerde()));
+                .groupBy(
+                        (key, value) -> value.split(" Type: ")[1].split(" ")[0], // Group by transport type
+                        Grouped.with(Serdes.String(), Serdes.String()) // Use Serdes.String() for both key and value (value is a string)
+                )
+                .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1))) // Tumbling window of 1 hour
+                .aggregate(
+                        () -> 0.0, // Initialize total occupancy to 0
+                        (key, value, aggregate) -> {
+                        // Extract occupancy value
+                        double currentOccupancy = Double.parseDouble(value.split(" Occupancy: ")[1]);
+                        // Sum the occupancy for this transport type
+                        return aggregate + currentOccupancy;
+                        },
+                        Materialized.with(Serdes.String(), Serdes.Double()) // Use Serdes.Double() for the aggregated value
+                )
+                .toStream()
+                .map((windowedKey, value) -> {
+                        // Extract transport type from Windowed<String>
+                        String transportType = windowedKey.key();
+                        return KeyValue.pair(transportType, value); // Return transport type and total occupancy
+                })
+                .groupBy(
+                        (transportType, totalOccupancy) -> transportType, // Group by transport type
+                        Grouped.with(Serdes.String(), Serdes.Double()) // Use Serdes.Double() for comparing occupancy values
+                )
+                .reduce(
+                        (aggValue, newValue) -> aggValue < newValue ? aggValue : newValue // Keep the least total occupancy
+                )
+                .toStream()
+                .groupBy((key, value) -> "leastOccupied", Grouped.with(Serdes.String(), Serdes.Double())) // Use a constant key for comparison
+                .reduce(
+                        (aggValue, newValue) -> aggValue < newValue ? aggValue : newValue, // Keep the least occupied transport type
+                        Materialized.with(Serdes.String(), Serdes.Double())
+                )
+                .toStream()
+                .map((key, value) -> {
+                        String transportType = key; // The key is the transport type
+                        return KeyValue.pair("least occupied transport type", transportType + " -> " + value); // Format the output
+                })
+                .peek((key, value) -> System.out.println(key + ": " + value))
+                .mapValues((key, value) -> createResult(key, value, "ResultsLeastOccupiedTransportType"))
+                .to("ResultsLeastOccupiedTransportTypeLastHour", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 15 => Get the name of the route operator with the most occupancy. Include the value of occupancy
+                // Step 1: Join the tripsStream with the routeTable
                 KStream<String, String> operatorOccupancyStream = tripsStream
                 .join(
-                        routeTable,
-                        (trip, route) -> {
+                routeTable,
+                (trip, route) -> {
                         int tripCount = 1; // Assuming one trip per record
                         double occupancy = (double) tripCount / route.getCapacity();
                         return "Operator: " + route.getOperator() + " RouteId: " + route.getRouteId() + " Occupancy: " + occupancy;
-                        }
+                }
                 );
 
-                // Group by operator to calculate maximum occupancy for each operator
+                // Step 2: Group by operator to calculate the maximum occupancy for each operator
                 KTable<String, String> operatorMaxOccupancy = operatorOccupancyStream
                 .groupBy(
-                        (key, value) -> value.split("Operator: ")[1].split(" ")[0], // Extract operator name
-                        Grouped.with(Serdes.String(), Serdes.String())
+                (key, value) -> value.split("Operator: ")[1].split(" ")[0], // Extract operator name
+                Grouped.with(Serdes.String(), Serdes.String())
                 )
                 .reduce(
-                        (aggValue, newValue) -> {
+                (aggValue, newValue) -> {
                         // Extract occupancy values
                         double aggOccupancy = Double.parseDouble(aggValue.split("Occupancy: ")[1]);
                         double newOccupancy = Double.parseDouble(newValue.split("Occupancy: ")[1]);
                         return newOccupancy > aggOccupancy ? newValue : aggValue; // Keep route with max occupancy
-                        },
-                        Materialized.with(Serdes.String(), Serdes.String())
+                },
+                Materialized.with(Serdes.String(), Serdes.String())
                 );
 
-                // Find the operator with the highest occupancy globally
+                // Step 3: Convert the operatorMaxOccupancy table to a stream and find the globally most occupied operator
                 KStream<String, String> mostOccupiedOperatorStream = operatorMaxOccupancy
                 .toStream()
+                .groupBy(
+                (key, value) -> "GlobalMaxOccupancy", // Single key for global reduction
+                Grouped.with(Serdes.String(), Serdes.String())
+                )
                 .reduce(
-                        (aggValue, newValue) -> {
+                (aggValue, newValue) -> {
                         double aggOccupancy = Double.parseDouble(aggValue.split("Occupancy: ")[1]);
                         double newOccupancy = Double.parseDouble(newValue.split("Occupancy: ")[1]);
-                        return newOccupancy > aggOccupancy ? newValue : aggValue;
-                        },
-                        Materialized.with(Serdes.String(), Serdes.String())
+                        return newOccupancy > aggOccupancy ? newValue : aggValue; // Keep the operator with max occupancy
+                },
+                Materialized.with(Serdes.String(), Serdes.String())
                 )
                 .toStream()
                 .map((key, value) -> {
-                        // Format the result
-                        String operator = value.split("Operator: ")[1].split(" ")[0];
-                        double occupancy = Double.parseDouble(value.split("Occupancy: ")[1]);
-                        return KeyValue.pair("MostOccupiedOperator", operator + " -> " + occupancy);
-                })
+                // Extract operator name and occupancy
+                String operator = value.split("Operator: ")[1].split(" ")[0];
+                double occupancy = Double.parseDouble(value.split("Occupancy: ")[1]);
+                return KeyValue.pair("MostOccupiedOperator", operator + " -> " + occupancy);
+                });
+
+                // Step 4: Send the result to the output topic
+                mostOccupiedOperatorStream
                 .peek((key, value) -> System.out.println("Most occupied operator: " + value))
                 .mapValues((key, value) -> createResult(key, value, "MostOccupiedOperator"))
                 .to("ResultsMostOccupiedOperator", Produced.with(Serdes.String(), new ResultsSerde()));
+
 
                 // 16 => Get the name of the passenger with the most trips 
                 tripsStream
