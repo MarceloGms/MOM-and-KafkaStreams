@@ -273,23 +273,18 @@ public class KafkaStreamsApp {
         
                 // 13 => Get the most used transport type in the last hour using a tumbling window, return only one if there is a tie
                 tripsStream
-                        .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Group by transport type
-                        .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1))) // Tumbling window of 1 hour
-                        .count(Materialized.with(Serdes.String(), Serdes.Long())) // Count passengers per transport type
+                        .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde())) // Agrupa por tipo de transporte
+                        .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1))) // Janela de tempo de uma hora
+                        .count(Materialized.with(Serdes.String(), Serdes.Long())) // Conta o número de passageiros por tipo
                         .toStream()
-                        .map((key, value) -> KeyValue.pair(key.window().start() + "-" + key.window().end(), key.key() + " -> " + value)) // Format as "window_start-window_end: transportType -> count"
-                        .groupByKey(Grouped.with(Serdes.String(), Serdes.String())) // Group by window (to aggregate globally within each window)
+                        .groupBy((key, value) -> key.key(), Grouped.with(Serdes.String(), Serdes.Long())) // Mantém o agrupamento pelo tipo de transporte
                         .reduce(
-                                (aggValue, newValue) -> {
-                                long aggCount = Long.parseLong(aggValue.split(" -> ")[1]);
-                                long newCount = Long.parseLong(newValue.split(" -> ")[1]);
-                                return newCount > aggCount ? newValue : aggValue; // Keep the transport type with the highest count
-                                },
-                                Materialized.with(Serdes.String(), Serdes.String())
+                                (aggValue, newValue) -> aggValue >= newValue ? aggValue : newValue, // Seleciona o transporte com maior número de passageiros
+                                Materialized.with(Serdes.String(), Serdes.Long())
                         )
                         .toStream()
-                        .map((key, value) -> KeyValue.pair("MostUsedTransportType", "Most used: " + value))
-                        .peek((key, value) -> System.out.println("Most used transport type: " + value))
+                        .peek((key, value) -> System.out.println("Most used transport type in the last hour: " + key + " with " + value + " passengers"))
+                        .map((key, value) -> KeyValue.pair("MostUsedTransportType", key + ": " + value))
                         .to("ResultsMostUsedTransportType", Produced.with(Serdes.String(), Serdes.String()));
 
 
