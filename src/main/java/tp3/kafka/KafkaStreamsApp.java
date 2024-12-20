@@ -6,6 +6,7 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
@@ -285,7 +286,8 @@ public class KafkaStreamsApp {
                         .toStream()
                         .peek((key, value) -> System.out.println("Most used transport type in the last hour: " + key + " with " + value + " passengers"))
                         .map((key, value) -> KeyValue.pair("MostUsedTransportType", key + ": " + value))
-                        .to("ResultsMostUsedTransportType", Produced.with(Serdes.String(), Serdes.String()));
+                        .mapValues((key, value) -> createResult(key, value, "ResultsMostUsedTransportType"))
+                        .to("ResultsMostUsedTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
 
                 // 14 => Get the least occupied transport type in the last hour (use a tumbling time window)
@@ -326,8 +328,57 @@ public class KafkaStreamsApp {
                                 return KeyValue.pair("least occupied transport type", transportType + " -> " + value);
                         })
                         .peek((key, value) -> System.out.println(key + ": " + value))
-                        .mapValues((key, value) -> createResult(key, value, "LeastOccupiedTransportType"))
-                        .to("LeastOccupiedTransportTypeLastHour", Produced.with(Serdes.String(), new ResultsSerde()));
+                        .mapValues((key, value) -> createResult(key, value, "ResultsLeastOccupiedTransportType"))
+                        .to("ReaultsLeastOccupiedTransportTypeLastHour", Produced.with(Serdes.String(), new ResultsSerde()));
+
+                // 15 => Get the name of the route operator with the most occupancy. Include the value of occupancy
+                KStream<String, String> operatorOccupancyStream = tripsStream
+                .join(
+                        routeTable,
+                        (trip, route) -> {
+                        int tripCount = 1; // Assuming one trip per record
+                        double occupancy = (double) tripCount / route.getCapacity();
+                        return "Operator: " + route.getOperator() + " RouteId: " + route.getRouteId() + " Occupancy: " + occupancy;
+                        }
+                );
+
+                // Group by operator to calculate maximum occupancy for each operator
+                KTable<String, String> operatorMaxOccupancy = operatorOccupancyStream
+                .groupBy(
+                        (key, value) -> value.split("Operator: ")[1].split(" ")[0], // Extract operator name
+                        Grouped.with(Serdes.String(), Serdes.String())
+                )
+                .reduce(
+                        (aggValue, newValue) -> {
+                        // Extract occupancy values
+                        double aggOccupancy = Double.parseDouble(aggValue.split("Occupancy: ")[1]);
+                        double newOccupancy = Double.parseDouble(newValue.split("Occupancy: ")[1]);
+                        return newOccupancy > aggOccupancy ? newValue : aggValue; // Keep route with max occupancy
+                        },
+                        Materialized.with(Serdes.String(), Serdes.String())
+                );
+
+                // Find the operator with the highest occupancy globally
+                KStream<String, String> mostOccupiedOperatorStream = operatorMaxOccupancy
+                .toStream()
+                .reduce(
+                        (aggValue, newValue) -> {
+                        double aggOccupancy = Double.parseDouble(aggValue.split("Occupancy: ")[1]);
+                        double newOccupancy = Double.parseDouble(newValue.split("Occupancy: ")[1]);
+                        return newOccupancy > aggOccupancy ? newValue : aggValue;
+                        },
+                        Materialized.with(Serdes.String(), Serdes.String())
+                )
+                .toStream()
+                .map((key, value) -> {
+                        // Format the result
+                        String operator = value.split("Operator: ")[1].split(" ")[0];
+                        double occupancy = Double.parseDouble(value.split("Occupancy: ")[1]);
+                        return KeyValue.pair("MostOccupiedOperator", operator + " -> " + occupancy);
+                })
+                .peek((key, value) -> System.out.println("Most occupied operator: " + value))
+                .mapValues((key, value) -> createResult(key, value, "MostOccupiedOperator"))
+                .to("ResultsMostOccupiedOperator", Produced.with(Serdes.String(), new ResultsSerde()));
 
                 // 16 => Get the name of the passenger with the most trips 
                 tripsStream
@@ -342,7 +393,8 @@ public class KafkaStreamsApp {
                 .toStream()
                 .peek((key, value) -> System.out.println("Passenger with the most trips: " + key + " with " + value + " trips"))
                 .map((key, value) -> KeyValue.pair("MostTripsPassenger", key + ": " + value))
-                .to("ResultsMostTripsPassenger", Produced.with(Serdes.String(), Serdes.String()));
+                .mapValues((key, value) -> createResult(key, value, "ResultsMostTripsPassenger"))
+                .to("ResultsMostTripsPassenger", Produced.with(Serdes.String(), new ResultsSerde()));
 
 
         
