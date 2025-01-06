@@ -13,6 +13,7 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Grouped;
+import org.apache.kafka.streams.kstream.Joined;
 import org.apache.kafka.streams.kstream.TimeWindows;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
@@ -75,10 +76,10 @@ public class KafkaStreamsApp {
                 // 6 => Occupancy percentage per route
                 tripsStream
                         .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
-                        .count(Materialized.with(Serdes.Long(), Serdes.Long()))
+                        .count(Materialized.with(Serdes.Long(), Serdes.Long())) // Count number of passengers per route
                         .join(routesStream
                                 .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new RouteSerde()))
-                                .aggregate(
+                                .aggregate( // Aggregate total capacity per route
                                         () -> 0,
                                         (key, value, aggregate) -> aggregate + value.getCapacity(),
                                         Materialized.with(Serdes.Long(), Serdes.Integer())
@@ -120,9 +121,8 @@ public class KafkaStreamsApp {
         
                 // 9 => Get the occupancy percentage total (for all routes)
                 tripsStream
-                        .map((key, value) -> KeyValue.pair("total", 1L))
-                        .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
-                        .reduce(Long::sum, Materialized.with(Serdes.String(), Serdes.Long())) 
+                        .groupBy((key, value) -> "total", Grouped.with(Serdes.String(), new TripSerde()))
+                        .count(Materialized.with(Serdes.String(), Serdes.Long()))
                         .join(routesStream
                                 .map((key, value) -> KeyValue.pair("total", value.getCapacity()))
                                 .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))
@@ -162,37 +162,48 @@ public class KafkaStreamsApp {
                         .mapValues((key, value) -> createResult(key, value, "ResultsAveragePassengersPerTransportType"))
                         .to("ResultsAveragePassengersPerTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
-
-
                 // 11 => Get the transport type with the highest number of served passengers (only one if there is a tie)
                 tripsStream
                         .groupBy((key, value) -> value.getTransportType(), Grouped.with(Serdes.String(), new TripSerde()))
-                        .count(Materialized.with(Serdes.String(), Serdes.Long()))
+                        .count(Materialized.with(Serdes.String(), Serdes.Long())) // Count number of passengers per transport type
                         .toStream()
-                        .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
+                        .map((key, value) -> KeyValue.pair("highest", key + "->" + value))
+                        .groupByKey(Grouped.with(Serdes.String(), Serdes.String()))
                         .reduce(
-                                (value1, value2) -> value1 >= value2 ? value1 : value2,
-                                Materialized.with(Serdes.String(), Serdes.Long())
+                                (value1, value2) -> {
+                                long count1 = Long.parseLong(value1.split("->")[1]);
+                                long count2 = Long.parseLong(value2.split("->")[1]);
+                                return count1 >= count2 ? value1 : value2;
+                                },
+                                Materialized.with(Serdes.String(), Serdes.String())
                         )
                         .toStream()
-                        .peek((key, value) -> System.out.println("Transport type with the highest passengers: " + key + "-" + value))
-                        .mapValues((key, value) -> createResult("highest", "" + key + " -> " + value, "ResultsHighestTransportType"))
+                        .peek((key, value) -> System.out.println("Transport type with the highest passengers: " + value))
+                        .mapValues((key, value) -> createResult("highest", value, "ResultsHighestTransportType"))
                         .to("ResultsHighestTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
             // 12 => Get the routes with the least occupancy per transport type
-            KTable<String, Route> routeTable = routesStream.toTable(Materialized.with(Serdes.String(), new RouteSerde()));
+                KTable<Long, Route> routeTable = routesStream
+                .selectKey((key, value) -> Long.parseLong(key)) // Convert keys to Long
+                .toTable(Materialized.with(Serdes.Long(), new RouteSerde()));
 
-                KStream<String, String> occupancyStream = tripsStream.join(
-                        routeTable,
-                        (trip, route) -> {
-                                int tripCount = 1; 
-                                double occupancy = (double) tripCount / route.getCapacity();
-                                return "RouteId: " + route.getRouteId() + " Type: " + route.getType() + " Occupancy: " + occupancy;
-                        }
+                // Group trips by route and count the number of trips (passengers) per route
+                KTable<Long, Long> tripCounts = tripsStream
+                .groupBy((key, value) -> value.getRouteId(), Grouped.with(Serdes.Long(), new TripSerde()))
+                .count(Materialized.with(Serdes.Long(), Serdes.Long()));
+
+                // Join the aggregated trip counts with the route table to calculate the occupancy
+                KStream<Long, String> occupancyStream = tripCounts.toStream().join(
+                routeTable,
+                (tripCount, route) -> {
+                        double occupancy = (double) tripCount / route.getCapacity();
+                        return "RouteId: " + route.getRouteId() + " Type: " + route.getType() + " Occupancy: " + occupancy;
+                },
+                Joined.with(Serdes.Long(), Serdes.Long(), new RouteSerde())
                 );
 
                 KTable<String, String> occupancyByTypeTable = occupancyStream
-                .groupBy((key, value) -> {
+                .groupBy((key, value) -> { // Group by transport type
                         String[] parts = value.split(" Type: ");
                         if (parts.length > 1 && parts[1].contains(" ")) {
                         return parts[1].split(" ")[0];
@@ -245,14 +256,18 @@ public class KafkaStreamsApp {
                         .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1)))
                         .count(Materialized.with(Serdes.String(), Serdes.Long()))
                         .toStream()
-                        .groupBy((key, value) -> key.key(), Grouped.with(Serdes.String(), Serdes.Long()))
+                        .map((key, value) -> KeyValue.pair("mostused", key.key() + "->" + value))
+                        .groupByKey(Grouped.with(Serdes.String(), Serdes.String()))
                         .reduce(
-                                (aggValue, newValue) -> aggValue >= newValue ? aggValue : newValue,
-                                Materialized.with(Serdes.String(), Serdes.Long())
+                                (value1, value2) -> {
+                                long count1 = Long.parseLong(value1.split("->")[1]);
+                                long count2 = Long.parseLong(value2.split("->")[1]);
+                                return count1 >= count2 ? value1 : value2;
+                                },
+                                Materialized.with(Serdes.String(), Serdes.String())
                         )
                         .toStream()
-                        .peek((key, value) -> System.out.println("Most used transport type in the last hour: " + key + " with " + value + " passengers"))
-                        .map((key, value) -> KeyValue.pair("MostUsedTransportType", key + ": " + value))
+                        .peek((key, value) -> System.out.println("Most used transport type in the last hour: " + value))
                         .mapValues((key, value) -> createResult(key, value, "ResultsMostUsedTransportType"))
                         .to("ResultsMostUsedTransportType", Produced.with(Serdes.String(), new ResultsSerde()));
 
@@ -298,14 +313,13 @@ public class KafkaStreamsApp {
 
 
                 // 15 => Get the name of the route operator with the most occupancy. Include the value of occupancy
-                KStream<String, String> operatorOccupancyStream = tripsStream
-                .join(
+                KStream<Long, String> operatorOccupancyStream = tripCounts.toStream().join(
                 routeTable,
-                (trip, route) -> {
-                        int tripCount = 1;
+                (tripCount, route) -> {
                         double occupancy = (double) tripCount / route.getCapacity();
                         return "Operator: " + route.getOperator() + " RouteId: " + route.getRouteId() + " Occupancy: " + occupancy;
-                }
+                },
+                Joined.with(Serdes.Long(), Serdes.Long(), new RouteSerde())
                 );
 
                 KTable<String, String> operatorMaxOccupancy = operatorOccupancyStream
@@ -354,14 +368,18 @@ public class KafkaStreamsApp {
                 .groupBy((key, value) -> value.getPassengerName(), Grouped.with(Serdes.String(), new TripSerde()))
                 .count(Materialized.with(Serdes.String(), Serdes.Long()))
                 .toStream()
-                .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
+                .map((key, value) -> KeyValue.pair("mosttrips", key + "->" + value))
+                .groupByKey(Grouped.with(Serdes.String(), Serdes.String()))
                 .reduce(
-                        (aggValue, newValue) -> aggValue > newValue ? aggValue : newValue,
-                        Materialized.with(Serdes.String(), Serdes.Long())
+                        (value1, value2) -> {
+                        long count1 = Long.parseLong(value1.split("->")[1]);
+                        long count2 = Long.parseLong(value2.split("->")[1]);
+                        return count1 >= count2 ? value1 : value2;
+                        },
+                        Materialized.with(Serdes.String(), Serdes.String())
                 )
                 .toStream()
-                .peek((key, value) -> System.out.println("Passenger with the most trips: " + key + " with " + value + " trips"))
-                .map((key, value) -> KeyValue.pair("MostTripsPassenger", key + ": " + value))
+                .peek((key, value) -> System.out.println("Passenger with the most trips: " + value))
                 .mapValues((key, value) -> createResult(key, value, "ResultsMostTripsPassenger"))
                 .to("ResultsMostTripsPassenger", Produced.with(Serdes.String(), new ResultsSerde()));
         
